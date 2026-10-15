@@ -1,0 +1,38 @@
+CONECTA PANA — PROYECTO CON EDITOR FIREBASE
+
+ESTRUCTURA
+- index.html, styles.css, app.js: página principal; se conserva el diseño existente.
+- editor-contenidos.html y editor.js: página independiente para administrar noticias.
+- noticias.json: respaldo inicial si Firestore no devuelve publicaciones.
+- img/: imágenes del proyecto.
+
+EDITOR
+Después de publicar en GitHub Pages, abrir: https://conectapana26.github.io/editor-contenidos.html
+
+FIREBASE AUTHENTICATION
+1. En Firebase Console > Authentication > Sign-in method, habilita Email/Password.
+2. En Authentication > Users, crea el usuario con el correo administrador indicado por el propietario y establece una contraseña. No hay contraseña incluida en este proyecto.
+3. En Authentication > Settings > Authorized domains, asegúrate de que conectapana26.github.io esté autorizado.
+
+FIRESTORE
+El editor y la página principal usan la colección `noticias`. Cada documento puede tener: title, titulo, category (noticias/eventos/actividades/comunicados), label, date, fecha, summary, content, contenido, image o imagen.
+
+REGLAS DE SEGURIDAD SUGERIDAS
+Pega estas reglas en Firestore > Reglas y publica. Solo el usuario autenticado con el correo administrador puede escribir; la lectura pública permite que la página principal muestre noticias. Reemplaza el correo si la cuenta autorizada cambia.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /noticias/{document} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && request.auth.token.email == 'sergioneira722@gmail.com';
+    }
+  }
+}
+
+IMPORTANTE
+- La configuración web de Firebase identifica el proyecto; no es una contraseña. Nunca publiques contraseñas de usuarios.
+- La página principal prioriza Firestore y usa noticias.json como respaldo si la colección está vacía o Firebase no responde.
+- Al primer uso, crea las publicaciones desde el editor. La colección `noticias` debe llamarse exactamente así.
+- Los archivos de Decap CMS y el editor antiguo de exportación JSON se retiraron para evitar confusiones.
+- GitHub Pages no necesita un proceso de compilación: sube el contenido de este ZIP a la raíz del repositorio conectapana26/conectapana26.github.io.
