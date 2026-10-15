@@ -7,7 +7,6 @@ const firebaseConfig = {
   apiKey: 'AIzaSyB4wXOr7r7phdZ5TVh-AVq7xGr_0mYdYQc',
   authDomain: 'conectapana-19383.firebaseapp.com',
   projectId: 'conectapana-19383',
-  storageBucket: 'conectapana-19383.firebasestorage.app',
   messagingSenderId: '1027814339341',
   appId: '1:1027814339341:web:f13b8008d6ce55eed83644',
   measurementId: 'G-3BDQLBFK4S'
@@ -47,22 +46,46 @@ function renderList() {
   list.querySelectorAll('[data-edit]').forEach(btn=>btn.addEventListener('click',()=>editPost(btn.dataset.edit)));
   list.querySelectorAll('[data-delete]').forEach(btn=>btn.addEventListener('click',()=>deletePost(btn.dataset.delete)));
 }
-function editPost(id) { const p=posts.find(x=>x.id===id); if(!p)return; $('form-kicker').textContent='Editar publicación'; $('form-title').textContent='Modificar contenido'; $('post-id').value=p.id; $('post-title').value=p.title; $('post-category').value=p.category; $('post-label').value=p.label; $('post-date').value=p.date; $('post-summary').value=p.summary; $('post-content').value=p.content; $('post-image').value=p.image; formPanel.classList.remove('hidden'); formPanel.scrollIntoView({behavior:'smooth',block:'start'}); }
-function newPost() { form.reset(); $('post-id').value=''; $('form-kicker').textContent='Nueva publicación'; $('form-title').textContent='Crear contenido'; $('post-category').value='noticias'; formPanel.classList.remove('hidden'); formPanel.scrollIntoView({behavior:'smooth',block:'start'}); $('post-title').focus(); }
-function closeForm() { formPanel.classList.add('hidden'); form.reset(); }
+function editPost(id) { const p=posts.find(x=>x.id===id); if(!p)return; $('form-kicker').textContent='Editar publicación'; $('form-title').textContent='Modificar contenido'; $('post-id').value=p.id; $('post-title').value=p.title; $('post-category').value=p.category; $('post-label').value=p.label; $('post-date').value=p.date; $('post-summary').value=p.summary; $('post-content').value=p.content; $('post-image').value=p.image; updateImagePreview(); formPanel.classList.remove('hidden'); formPanel.scrollIntoView({behavior:'smooth',block:'start'}); }
+function newPost() { form.reset(); $('image-preview').removeAttribute('src'); $('image-preview').classList.add('hidden'); $('image-preview-error').classList.add('hidden'); $('post-id').value=''; $('form-kicker').textContent='Nueva publicación'; $('form-title').textContent='Crear contenido'; $('post-category').value='noticias'; formPanel.classList.remove('hidden'); formPanel.scrollIntoView({behavior:'smooth',block:'start'}); $('post-title').focus(); }
+function closeForm() { formPanel.classList.add('hidden'); form.reset(); $('image-preview').removeAttribute('src'); $('image-preview').classList.add('hidden'); $('image-preview-error').classList.add('hidden'); }
 async function deletePost(id) { const p=posts.find(x=>x.id===id); if(!p||!confirm(`¿Seguro que quieres eliminar «${p.title}» de Firebase?`))return; try { await deleteDoc(doc(db,'noticias',id)); posts=posts.filter(x=>x.id!==id); renderList(); say('Publicación eliminada de Firebase.'); } catch(e) { console.error(e); say('No se pudo eliminar. Verifica tus permisos de Firebase.',true); } }
+function updateImagePreview() {
+  const url = $('post-image').value.trim();
+  const preview = $('image-preview');
+  const error = $('image-preview-error');
+  error.classList.add('hidden');
+  if (!url) { preview.removeAttribute('src'); preview.classList.add('hidden'); return; }
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('URL no permitida');
+    preview.onload = () => { preview.classList.remove('hidden'); error.classList.add('hidden'); };
+    preview.onerror = () => { preview.classList.add('hidden'); error.classList.remove('hidden'); };
+    preview.src = parsed.href;
+  } catch (_) {
+    preview.removeAttribute('src'); preview.classList.add('hidden');
+    error.textContent = 'Escribe una URL válida que comience por https://';
+    error.classList.remove('hidden');
+  }
+}
+$('post-image').addEventListener('input', updateImagePreview);
+$('image-preview').addEventListener('error', () => { $('image-preview').classList.add('hidden'); $('image-preview-error').classList.remove('hidden'); });
+
 form.addEventListener('submit',async event=>{
   event.preventDefault(); const title=$('post-title').value.trim(), summary=$('post-summary').value.trim(), content=$('post-content').value.trim();
   if(!title||!summary||!content){say('Completa el título, el resumen y el contenido completo.',true);return;}
   const category=$('post-category').value;
-  const payload={title,titulo:title,category,label:$('post-label').value.trim()||categoryNames[category],date:$('post-date').value.trim(),fecha:$('post-date').value.trim(),summary,content,contenido:content,image:$('post-image').value.trim(),imagen:$('post-image').value.trim(),actualizado:serverTimestamp()};
-  const id=$('post-id').value;
   const save=$('save-btn'); save.disabled=true; save.textContent='Guardando…';
-  try { if(id) await updateDoc(doc(db,'noticias',id),payload); else await addDoc(collection(db,'noticias'),{...payload,creado:serverTimestamp()}); closeForm(); await loadPosts(); say('¡Publicación guardada directamente en Firebase!'); }
-  catch(e){console.error(e);say('No se pudo guardar. Revisa que hayas iniciado sesión y las reglas de Firestore.',true);}
+  try {
+  const imageUrl = $('post-image').value.trim();
+  if (imageUrl) { const parsed = new URL(imageUrl); if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('El enlace de la imagen debe comenzar por https://'); }
+  const payload={title,titulo:title,category,label:$('post-label').value.trim()||categoryNames[category],date:$('post-date').value.trim(),fecha:$('post-date').value.trim(),summary,content,contenido:content,image:imageUrl,imagen:imageUrl,actualizado:serverTimestamp()};
+  const id=$('post-id').value;
+  if(id) await updateDoc(doc(db,'noticias',id),payload); else await addDoc(collection(db,'noticias'),{...payload,creado:serverTimestamp()}); closeForm(); await loadPosts(); say('¡Publicación guardada directamente en Firebase!'); }
+  catch(e){console.error(e);say(`No se pudo guardar (${e.code || e.message || 'error desconocido'}). Revisa el enlace de imagen y los permisos de Firestore.`,true);}
   finally {save.disabled=false;save.innerHTML='<i class="fa-solid fa-floppy-disk mr-2"></i>Guardar publicación';}
 });
 $('add-btn').addEventListener('click',newPost); $('cancel-btn').addEventListener('click',closeForm); $('cancel-bottom-btn').addEventListener('click',closeForm);
-$('login-form').addEventListener('submit',async e=>{e.preventDefault();const button=$('login-btn');button.disabled=true;try{await signInWithEmailAndPassword(auth,$('login-email').value.trim(),$('login-password').value);$('login-error').textContent='';}catch(err){console.error(err);$('login-error').textContent='No se pudo iniciar sesión. Revisa el correo y la contraseña, y que Email/contraseña esté habilitado en Firebase.';}finally{button.disabled=false;}});
+$('login-form').addEventListener('submit',async e=>{e.preventDefault();const button=$('login-btn');button.disabled=true;try{await signInWithEmailAndPassword(auth,$('login-email').value.trim(),$('login-password').value);$('login-error').textContent='';}catch(err){console.error(err);const messages={'auth/api-key-not-valid.-please-pass-a-valid-api-key':'Firebase rechaza la clave API usada por esta página. Comprueba que editor.js tenga la configuración exacta de la app web.','auth/invalid-credential':'El correo o la contraseña no coinciden con el usuario de Firebase.','auth/operation-not-allowed':'El método Email/contraseña no está habilitado.','auth/unauthorized-domain':'Este dominio no está autorizado en Firebase Authentication.','auth/network-request-failed':'No se pudo conectar con Firebase. Comprueba la conexión.'};$('login-error').textContent=messages[err.code] || `No se pudo iniciar sesión (${err.code || err.message || 'error desconocido'}).`;}finally{button.disabled=false;}});
 $('logout-btn').addEventListener('click',()=>signOut(auth));
 onAuthStateChanged(auth,user=>{ $('login-panel').classList.toggle('hidden',!!user); $('editor-area').classList.toggle('hidden',!user); $('user-status').textContent=user?`Sesión iniciada: ${user.email}`:''; if(user)loadPosts(); else {posts=[];list.innerHTML='';closeForm();} });
